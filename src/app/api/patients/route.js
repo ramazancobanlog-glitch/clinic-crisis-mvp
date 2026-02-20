@@ -38,7 +38,7 @@ export async function POST(request) {
         }
 
         const result = await execute(db, `
-            INSERT INTO patients (clinic_id, name, tc_no, birth_date, blood_type, gestational_week, risk_level, status, room, bed, emergency_contact, notes)
+            INSERT INTO patients (clinic_id, name, tc_no, birth_date, blood_type, gestational_week, risk_level, status, room_number, bed_number, emergency_contact, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'admitted', ?, ?, ?, ?)
         `, [clinicId, name, tcNo, birthDate, bloodType, gestationalWeek, riskLevel, room, bed, emergencyContact, notes]);
 
