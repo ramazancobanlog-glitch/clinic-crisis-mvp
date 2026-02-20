@@ -162,7 +162,7 @@ export default function DashboardLayout({ children }) {
                     ))}
                 </nav>
 
-                {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
+
 
                 <div className="sidebar-footer">
                     <div className="sidebar-user">
@@ -179,6 +179,8 @@ export default function DashboardLayout({ children }) {
                     </div>
                 </div>
             </aside>
+
+            {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
 
             {/* Main Content */}
             <main className="main-content">
