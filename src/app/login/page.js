@@ -44,9 +44,6 @@ export default function LoginPage() {
 
     return (
         <div className="login-page">
-            <div className="draft-notice">
-                ⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.
-            </div>
             <div className="login-container fade-in">
                 <div className="login-logo">
                     <div className="login-logo-icon">🏥</div>
@@ -106,6 +103,11 @@ export default function LoginPage() {
                             <strong>🩺 Doktor</strong>
                             <span>doktor@klinik.com</span>
                         </button>
+                    </div>
+
+                    <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>
+                        ⚠️ <strong>BU BİR TASLAK SİTEDİR</strong><br />
+                        Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.
                     </div>
                 </div>
             </div>

@@ -52,9 +52,6 @@ export default function DashboardLayout({ children }) {
         if (!sessionStorage.getItem('draftNoticeSeen')) {
             setShowDraftNotice(true);
             sessionStorage.setItem('draftNoticeSeen', 'true');
-            // 8 saniye sonra otomatik gizle
-            const timer = setTimeout(() => setShowDraftNotice(false), 8000);
-            return () => clearTimeout(timer);
         }
     }, []);
 
@@ -111,9 +108,17 @@ export default function DashboardLayout({ children }) {
     return (
         <div className="dashboard-layout">
             {showDraftNotice && (
-                <div className="draft-notice" style={{ position: 'fixed', zIndex: 2000, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.</span>
-                    <button onClick={() => setShowDraftNotice(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px', marginLeft: '16px' }}>✕</button>
+                <div className="modal-overlay" style={{ zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal" style={{ textAlign: 'center', padding: '32px', maxWidth: '400px' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+                        <h3 style={{ marginBottom: '12px', color: 'var(--accent-yellow)' }}>BU BİR TASLAK SİTEDİR</h3>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>
+                            KlinikKriz operasyon yönetimi uygulaması şu anda prototip ve demonstrasyon aşamasındadır.
+                        </p>
+                        <button className="btn btn-primary" onClick={() => setShowDraftNotice(false)} style={{ width: '100%' }}>
+                            Anladım, Devam Et
+                        </button>
+                    </div>
                 </div>
             )}
             {/* Sidebar */}

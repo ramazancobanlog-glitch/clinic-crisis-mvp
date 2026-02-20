@@ -1700,6 +1700,9 @@ body {
   .mobile-menu-btn {
     display: flex;
     margin-right: 12px;
+    position: relative;
+    z-index: 110;
+    background: var(--bg-card);
   }
 }
 
