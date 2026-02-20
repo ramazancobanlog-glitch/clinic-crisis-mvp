@@ -1,9 +1,12 @@
-name = "taslak"
+name = "clinic-crisis-mvp"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
+[build]
+command = "npx @cloudflare/next-on-pages"
+
 [[d1_databases]]
 binding = "DB"
-database_name = "taslak"
+database_name = "clinic-crisis-db"
 database_id = "a18a28ec-3c71-4bc4-8ec7-be79fe6c8dc7"
