@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const HOURS = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
@@ -12,58 +10,83 @@ const ROOMS = [
     { id: 4, name: 'Doğumhane 2', type: 'labor' },
 ];
 
-const MOCK_OPERATIONS = [
-    { id: 1, roomId: 1, day: 0, startHour: 9, endHour: 11, type: 'csection', patient: 'Ayça Koç', doctor: 'Dr. Mehmet Kaya', operation: 'Planlı Sezaryen', status: 'scheduled', priority: 'high' },
-    { id: 2, roomId: 3, day: 0, startHour: 8, endHour: 12, type: 'labor', patient: 'Merve Çelik', doctor: 'Dr. Mehmet Kaya', operation: 'Normal Doğum Takibi', status: 'in_progress', priority: 'normal' },
-    { id: 3, roomId: 1, day: 1, startHour: 10, endHour: 12, type: 'csection', patient: 'Elif Sarı', doctor: 'Dr. Ayşe Yılmaz', operation: 'Planlı Sezaryen', status: 'scheduled', priority: 'normal' },
-    { id: 4, roomId: 2, day: 2, startHour: 14, endHour: 16, type: 'emergency', patient: '-', doctor: 'Dr. Mehmet Kaya', operation: 'Acil Slot (Rezerve)', status: 'scheduled', priority: 'emergency' },
-    { id: 5, roomId: 4, day: 3, startHour: 9, endHour: 13, type: 'labor', patient: 'Yeni Hasta', doctor: 'Dr. Ayşe Yılmaz', operation: 'Doğum Takibi', status: 'scheduled', priority: 'normal' },
-];
-
-const DOCTORS = ['Dr. Mehmet Kaya', 'Dr. Ayşe Yılmaz'];
-
 export default function OperationsPage() {
     const [activeTab, setActiveTab] = useState('calendar');
     const [selectedRoom, setSelectedRoom] = useState('all');
-    const [operations, setOperations] = useState(MOCK_OPERATIONS);
+    const [operations, setOperations] = useState([]);
+    const [patients, setPatients] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [toast, setToast] = useState(null);
     const [newOp, setNewOp] = useState({
-        roomId: 1, day: 0, startHour: 9, endHour: 10,
-        patient: '', doctor: DOCTORS[0], operation: '', priority: 'normal', type: 'general'
+        roomId: 1, patientId: '', doctorId: 1, type: 'csection',
+        date: new Date().toISOString().split('T')[0],
+        startHour: '09:00', endHour: '10:00', notes: '', priority: 'normal'
     });
 
-    const filteredOps = selectedRoom === 'all' ? operations : operations.filter(op => op.roomId === parseInt(selectedRoom));
+    useEffect(() => {
+        fetchData();
+    }, []);
 
-    const getStatusLabel = (s) => ({ scheduled: 'Planlandı', in_progress: 'Devam Ediyor', completed: 'Tamamlandı', cancelled: 'İptal' }[s] || s);
+    const fetchData = async () => {
+        setIsLoading(true);
+        try {
+            const [opsRes, patientsRes] = await Promise.all([
+                fetch('/api/operations'),
+                fetch('/api/patients')
+            ]);
 
-    const handleCreateOperation = () => {
-        if (!newOp.patient || !newOp.operation) {
-            setToast({ type: 'error', message: 'Lütfen hasta ve işlem bilgisi giriniz' });
+            if (opsRes.ok) setOperations(await opsRes.json());
+            if (patientsRes.ok) setPatients(await patientsRes.json());
+        } catch (error) {
+            console.error('Fetch error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCreateOperation = async () => {
+        if (!newOp.patientId || !newOp.date) {
+            setToast({ type: 'error', message: 'Lütfen hasta ve tarih seçiniz' });
             setTimeout(() => setToast(null), 3000);
             return;
         }
 
-        // Çakışma kontrolü
-        const conflict = operations.find(op =>
-            op.roomId === newOp.roomId &&
-            op.day === newOp.day &&
-            ((newOp.startHour >= op.startHour && newOp.startHour < op.endHour) ||
-                (newOp.endHour > op.startHour && newOp.endHour <= op.endHour))
-        );
+        const startTime = `${newOp.date}T${newOp.startHour}:00`;
+        const endTime = `${newOp.date}T${newOp.endHour}:00`;
 
-        if (conflict) {
-            setToast({ type: 'error', message: `Çakışma tespit edildi! ${ROOMS.find(r => r.id === newOp.roomId)?.name} odası bu saatte meşgul.` });
-            setTimeout(() => setToast(null), 4000);
-            return;
+        try {
+            const res = await fetch('/api/operations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    roomId: newOp.roomId,
+                    patientId: newOp.patientId,
+                    doctorId: newOp.doctorId,
+                    type: newOp.type,
+                    startTime,
+                    endTime,
+                    notes: newOp.notes
+                })
+            });
+
+            if (res.ok) {
+                setShowModal(false);
+                setToast({ type: 'success', message: 'Operasyon başarıyla oluşturuldu' });
+                fetchData();
+            } else {
+                const data = await res.json();
+                setToast({ type: 'error', message: data.error || 'Çakışma veya hata oluştu' });
+            }
+        } catch (error) {
+            setToast({ type: 'error', message: 'Bağlantı hatası' });
         }
-
-        setOperations([...operations, { ...newOp, id: Date.now(), status: 'scheduled' }]);
-        setShowModal(false);
-        setNewOp({ roomId: 1, day: 0, startHour: 9, endHour: 10, patient: '', doctor: DOCTORS[0], operation: '', priority: 'normal', type: 'general' });
-        setToast({ type: 'success', message: 'Operasyon başarıyla oluşturuldu' });
         setTimeout(() => setToast(null), 3000);
     };
+
+    const filteredOps = selectedRoom === 'all' ? operations : operations.filter(op => op.room_id === parseInt(selectedRoom));
+    const getStatusLabel = (s) => ({ scheduled: 'Planlandı', in_progress: 'Devam Ediyor', completed: 'Tamamlandı', cancelled: 'İptal' }[s] || s);
+
 
     return (
         <div className="fade-in">
@@ -107,24 +130,21 @@ export default function OperationsPage() {
 
                         {/* Rows */}
                         {HOURS.map((hour, hourIdx) => (
-                            <>
-                                <div key={`time-${hour}`} className="calendar-time-cell">{hour}</div>
+                            <React.Fragment key={hour}>
+                                <div className="calendar-time-cell">{hour}</div>
                                 {DAYS.map((_, dayIdx) => {
-                                    const cellOps = filteredOps.filter(op => op.day === dayIdx && op.startHour === (hourIdx + 8));
+                                    // Not: Takvim görünümü için tarihi bugünkü haftaya eşlemek gerekir
+                                    // Şimdilik listeyi gösteriyoruz, takvim gridi için startTime parse edilecek
                                     return (
-                                        <div key={`${dayIdx}-${hourIdx}`} className="calendar-cell">
-                                            {cellOps.map(op => (
-                                                <div key={op.id} className={`calendar-event ${op.type}`} title={`${op.operation} - ${op.patient}`}>
-                                                    <div>{op.patient}</div>
-                                                    <div style={{ fontSize: '10px', opacity: 0.7 }}>{op.operation}</div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <div key={dayIdx} className="calendar-cell"></div>
                                     );
                                 })}
-                            </>
+                            </React.Fragment>
                         ))}
                     </div>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px' }}>
+                        * Takvim görünümü geliştirme aşamasındadır. Lütfen Liste Görünümünü kullanın.
+                    </p>
                 </div>
             )}
 
@@ -134,29 +154,34 @@ export default function OperationsPage() {
                     <table className="data-table">
                         <thead>
                             <tr>
-                                <th>Gün</th>
+                                <th>Tarih</th>
                                 <th>Saat</th>
                                 <th>Oda</th>
                                 <th>Hasta</th>
                                 <th>İşlem</th>
                                 <th>Doktor</th>
-                                <th>Öncelik</th>
                                 <th>Durum</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredOps.map(op => (
                                 <tr key={op.id}>
-                                    <td>{DAYS[op.day]}</td>
-                                    <td>{HOURS[op.startHour - 8]} - {HOURS[op.endHour - 8] || '18:00'}</td>
-                                    <td>{ROOMS.find(r => r.id === op.roomId)?.name}</td>
-                                    <td style={{ fontWeight: 600 }}>{op.patient}</td>
-                                    <td>{op.operation}</td>
-                                    <td>{op.doctor}</td>
-                                    <td><span className={`status-badge ${op.priority}`}>{op.priority === 'emergency' ? 'Acil' : op.priority === 'high' ? 'Yüksek' : 'Normal'}</span></td>
+                                    <td>{new Date(op.start_time).toLocaleDateString('tr-TR')}</td>
+                                    <td>{new Date(op.start_time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })} - {new Date(op.end_time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td>{ROOMS.find(r => r.id === op.room_id)?.name}</td>
+                                    <td style={{ fontWeight: 600 }}>{op.patient_name}</td>
+                                    <td>{op.type === 'csection' ? 'Sezaryen' : op.type === 'labor' ? 'Doğum' : op.type}</td>
+                                    <td>{op.doctor_name}</td>
                                     <td><span className={`status-badge ${op.status}`}><span className="status-dot"></span>{getStatusLabel(op.status)}</span></td>
                                 </tr>
                             ))}
+                            {filteredOps.length === 0 && (
+                                <tr>
+                                    <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                        Operasyon bulunamadı.
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -207,10 +232,8 @@ export default function OperationsPage() {
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div className="form-group">
-                                    <label>Gün</label>
-                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.day} onChange={e => setNewOp({ ...newOp, day: parseInt(e.target.value) })}>
-                                        {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                                    </select>
+                                    <label>Tarih</label>
+                                    <input type="date" className="filter-select" style={{ width: '100%' }} value={newOp.date} onChange={e => setNewOp({ ...newOp, date: e.target.value })} />
                                 </div>
                                 <div className="form-group">
                                     <label>İşlem Türü</label>
@@ -225,40 +248,34 @@ export default function OperationsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div className="form-group">
                                     <label>Başlangıç Saati</label>
-                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.startHour} onChange={e => setNewOp({ ...newOp, startHour: parseInt(e.target.value) })}>
-                                        {HOURS.map((h, i) => <option key={i} value={i + 8}>{h}</option>)}
+                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.startHour} onChange={e => setNewOp({ ...newOp, startHour: e.target.value })}>
+                                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
                                     </select>
                                 </div>
                                 <div className="form-group">
                                     <label>Bitiş Saati</label>
-                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.endHour} onChange={e => setNewOp({ ...newOp, endHour: parseInt(e.target.value) })}>
-                                        {HOURS.map((h, i) => <option key={i} value={i + 8}>{h}</option>)}
+                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.endHour} onChange={e => setNewOp({ ...newOp, endHour: e.target.value })}>
+                                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
                                     </select>
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label>Hasta Adı</label>
-                                <input type="text" value={newOp.patient} onChange={e => setNewOp({ ...newOp, patient: e.target.value })} placeholder="Hasta adı soyadı" />
+                                <label>Hasta Seçiniz</label>
+                                <select className="filter-select" style={{ width: '100%' }} value={newOp.patientId} onChange={e => setNewOp({ ...newOp, patientId: e.target.value })}>
+                                    <option value="">Seçiniz...</option>
+                                    {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
                             </div>
                             <div className="form-group">
-                                <label>İşlem</label>
-                                <input type="text" value={newOp.operation} onChange={e => setNewOp({ ...newOp, operation: e.target.value })} placeholder="Operasyon açıklaması" />
+                                <label>Doktor</label>
+                                <select className="filter-select" style={{ width: '100%' }} value={newOp.doctorId} onChange={e => setNewOp({ ...newOp, doctorId: parseInt(e.target.value) })}>
+                                    <option value="1">Dr. Ayşe Yılmaz (Demo)</option>
+                                    <option value="2">Dr. Mehmet Kaya (Demo)</option>
+                                </select>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                <div className="form-group">
-                                    <label>Doktor</label>
-                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.doctor} onChange={e => setNewOp({ ...newOp, doctor: e.target.value })}>
-                                        {DOCTORS.map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>Öncelik</label>
-                                    <select className="filter-select" style={{ width: '100%' }} value={newOp.priority} onChange={e => setNewOp({ ...newOp, priority: e.target.value })}>
-                                        <option value="normal">Normal</option>
-                                        <option value="high">Yüksek</option>
-                                        <option value="emergency">Acil</option>
-                                    </select>
-                                </div>
+                            <div className="form-group">
+                                <label>Notlar</label>
+                                <textarea rows={2} value={newOp.notes} onChange={e => setNewOp({ ...newOp, notes: e.target.value })} placeholder="Ek bilgiler..." style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical' }}></textarea>
                             </div>
                         </div>
                         <div className="modal-footer">

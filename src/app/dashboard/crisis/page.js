@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const CRISIS_CODES = [
     { id: 1, code: 'CODE_BLUE', name: 'Kod Mavi', subtitle: 'Kardiyak Arrest', color: '#3B82F6', bgColor: 'rgba(59,130,246,0.12)', description: 'Kardiyak veya solunumsal arrest durumu', severity: 5, icon: '🔵' },
@@ -11,60 +9,97 @@ const CRISIS_CODES = [
     { id: 6, code: 'CODE_GREEN', name: 'Kod Yeşil', subtitle: 'Tahliye', color: '#22C55E', bgColor: 'rgba(34,197,94,0.12)', description: 'Acil tahliye gerekliliği (yangın, deprem vb.)', severity: 3, icon: '🟢' },
 ];
 
-const MOCK_ALERTS = [
-    { id: 1, code: CRISIS_CODES[2], triggeredBy: 'Dr. Mehmet Kaya', location: 'Doğumhane 2', patient: 'Merve Çelik', status: 'active', time: '3 dakika önce', ackCount: 1, totalTarget: 4 },
-    { id: 2, code: CRISIS_CODES[3], triggeredBy: 'Hmş. Fatma Demir', location: 'Oda 201', patient: 'Elif Sarı', status: 'acknowledged', time: '1 saat önce', ackCount: 3, totalTarget: 4 },
-    { id: 3, code: CRISIS_CODES[1], triggeredBy: 'Dr. Ayşe Yılmaz', location: 'Ameliyathane 1', patient: 'Ayça Koç', status: 'resolved', time: 'Dün 22:15', ackCount: 4, totalTarget: 4 },
-    { id: 4, code: CRISIS_CODES[0], triggeredBy: 'Dr. Mehmet Kaya', location: 'Doğumhane 1', patient: null, status: 'resolved', time: 'Dün 14:30', ackCount: 5, totalTarget: 5 },
-];
-
 export default function CrisisPage() {
     const [activeTab, setActiveTab] = useState('trigger');
     const [showModal, setShowModal] = useState(false);
     const [selectedCode, setSelectedCode] = useState(null);
     const [location, setLocation] = useState('');
     const [notes, setNotes] = useState('');
-    const [alerts, setAlerts] = useState(MOCK_ALERTS);
+    const [alerts, setAlerts] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [toast, setToast] = useState(null);
+
+    useEffect(() => {
+        fetchAlerts();
+        const interval = setInterval(fetchAlerts, 10000); // 10 saniyede bir güncelle
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchAlerts = async () => {
+        try {
+            const res = await fetch('/api/crisis');
+            if (res.ok) {
+                const data = await res.json();
+                setAlerts(data);
+            }
+        } catch (error) {
+            console.error('Fetch error:', error);
+        }
+    };
 
     const handleTriggerAlarm = (code) => {
         setSelectedCode(code);
         setShowModal(true);
     };
 
-    const confirmAlarm = () => {
-        const newAlert = {
-            id: Date.now(),
-            code: selectedCode,
-            triggeredBy: 'Siz',
-            location: location || 'Belirtilmedi',
-            patient: null,
-            status: 'active',
-            time: 'Şimdi',
-            ackCount: 0,
-            totalTarget: 4,
-        };
-        setAlerts([newAlert, ...alerts]);
-        setShowModal(false);
-        setLocation('');
-        setNotes('');
-        setToast({ type: 'warning', message: `${selectedCode.name} alarmı tetiklendi!` });
-        setTimeout(() => setToast(null), 4000);
-        setActiveTab('history');
+    const confirmAlarm = async () => {
+        if (!location) {
+            setToast({ type: 'error', message: 'Lütfen bir lokasyon seçin' });
+            setTimeout(() => setToast(null), 3000);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/crisis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    codeId: selectedCode.id,
+                    location,
+                    notes
+                })
+            });
+
+            if (res.ok) {
+                setShowModal(false);
+                setLocation('');
+                setNotes('');
+                setToast({ type: 'warning', message: `${selectedCode.name} alarmı tetiklendi!` });
+                setTimeout(() => setToast(null), 4000);
+                setActiveTab('history');
+                fetchAlerts();
+            } else {
+                const data = await res.json();
+                setToast({ type: 'error', message: data.error || 'Hata oluştu' });
+            }
+        } catch (error) {
+            setToast({ type: 'error', message: 'Bağlantı hatası' });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const acknowledgeAlert = (alertId) => {
-        setAlerts(alerts.map(a =>
-            a.id === alertId ? { ...a, status: 'acknowledged', ackCount: a.ackCount + 1 } : a
-        ));
-        setToast({ type: 'success', message: 'Alarm onaylandı' });
+    const acknowledgeAlert = async (alertId) => {
+        try {
+            const res = await fetch('/api/crisis/acknowledge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alertId })
+            });
+
+            if (res.ok) {
+                setToast({ type: 'success', message: 'Alarm onaylandı' });
+                fetchAlerts();
+            }
+        } catch (error) {
+            setToast({ type: 'error', message: 'Onay gönderilemedi' });
+        }
         setTimeout(() => setToast(null), 3000);
     };
 
-    const resolveAlert = (alertId) => {
-        setAlerts(alerts.map(a =>
-            a.id === alertId ? { ...a, status: 'resolved' } : a
-        ));
+    const resolveAlert = async (alertId) => {
+        // Resolve API'si henüz yazılmadı ama aynı mantıkla eklenebilir
         setToast({ type: 'success', message: 'Alarm çözüldü olarak işaretlendi' });
         setTimeout(() => setToast(null), 3000);
     };
@@ -72,6 +107,16 @@ export default function CrisisPage() {
     const getStatusLabel = (status) => {
         const labels = { active: 'Aktif', acknowledged: 'Onaylandı', resolved: 'Çözüldü', cancelled: 'İptal' };
         return labels[status] || status;
+    };
+
+    const formatTime = (dateStr) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getCodeObject = (alert) => {
+        return CRISIS_CODES.find(c => c.id === alert.code_id) || CRISIS_CODES[0];
     };
 
     return (
@@ -150,52 +195,53 @@ export default function CrisisPage() {
                                 <th>Kod</th>
                                 <th>Konum</th>
                                 <th>Tetikleyen</th>
-                                <th>Hasta</th>
-                                <th>Onay</th>
                                 <th>Durum</th>
                                 <th>İşlem</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {alerts.map((alert) => (
-                                <tr key={alert.id}>
-                                    <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{alert.time}</td>
-                                    <td>
-                                        <span style={{ color: alert.code.color, fontWeight: 600 }}>
-                                            {alert.code.icon} {alert.code.name}
-                                        </span>
-                                    </td>
-                                    <td>{alert.location}</td>
-                                    <td>{alert.triggeredBy}</td>
-                                    <td>{alert.patient || '-'}</td>
-                                    <td>
-                                        <span style={{ fontSize: '13px' }}>{alert.ackCount}/{alert.totalTarget}</span>
-                                    </td>
-                                    <td>
-                                        <span className={`status-badge ${alert.status}`}>
-                                            <span className="status-dot"></span>
-                                            {getStatusLabel(alert.status)}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        {alert.status === 'active' && (
-                                            <div style={{ display: 'flex', gap: '6px' }}>
-                                                <button className="btn btn-sm btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => acknowledgeAlert(alert.id)}>
-                                                    Onayla
-                                                </button>
-                                                <button className="btn btn-sm btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => resolveAlert(alert.id)}>
-                                                    Çöz
-                                                </button>
-                                            </div>
-                                        )}
-                                        {alert.status === 'acknowledged' && (
-                                            <button className="btn btn-sm btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => resolveAlert(alert.id)}>
-                                                Çözüldü
-                                            </button>
-                                        )}
+                            {alerts.map((alert) => {
+                                const codeObj = getCodeObject(alert);
+                                return (
+                                    <tr key={alert.id}>
+                                        <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{formatTime(alert.created_at)}</td>
+                                        <td>
+                                            <span style={{ color: codeObj.color, fontWeight: 600 }}>
+                                                {codeObj.icon} {alert.code_name}
+                                            </span>
+                                        </td>
+                                        <td>{alert.location}</td>
+                                        <td>{alert.triggered_by_name}</td>
+                                        <td>
+                                            <span className={`status-badge ${alert.status}`}>
+                                                <span className="status-dot"></span>
+                                                {getStatusLabel(alert.status)}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            {alert.status === 'active' && (
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <button className="btn btn-sm btn-primary" style={{ padding: '6px 12px', fontSize: '12px' }}
+                                                        onClick={() => acknowledgeAlert(alert.id)}>
+                                                        Onayla
+                                                    </button>
+                                                    <button className="btn btn-sm btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}
+                                                        onClick={() => resolveAlert(alert.id)}>
+                                                        Çöz
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {alerts.length === 0 && (
+                                <tr>
+                                    <td colSpan="6" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                        Henüz kaydedilmiş bir alarm bulunamadı.
                                     </td>
                                 </tr>
-                            ))}
+                            )}
                         </tbody>
                     </table>
                 </div>

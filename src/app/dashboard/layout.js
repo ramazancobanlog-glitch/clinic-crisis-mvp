@@ -100,6 +100,9 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="dashboard-layout">
+            <div className="draft-notice" style={{ position: 'fixed', zIndex: 2000 }}>
+                ⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.
+            </div>
             {/* Sidebar */}
             <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
@@ -141,6 +144,8 @@ export default function DashboardLayout({ children }) {
                     ))}
                 </nav>
 
+                {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
+
                 <div className="sidebar-footer">
                     <div className="sidebar-user">
                         <div className="sidebar-user-avatar">
@@ -162,11 +167,10 @@ export default function DashboardLayout({ children }) {
                 <header className="main-header">
                     <div className="main-header-left">
                         <button
-                            className="btn-icon"
+                            className="btn-icon mobile-menu-btn"
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            style={{ display: 'none' }}
                         >
-                            ☰
+                            {sidebarOpen ? '✕' : '☰'}
                         </button>
                         <h1>{getPageTitle()}</h1>
                     </div>

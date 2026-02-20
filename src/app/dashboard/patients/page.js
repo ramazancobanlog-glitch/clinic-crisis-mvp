@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const STATUS_LABELS = {
     admitted: 'Yatış',
@@ -12,34 +10,39 @@ const STATUS_LABELS = {
 
 const RISK_LABELS = { low: 'Düşük', medium: 'Orta', high: 'Yüksek', critical: 'Kritik' };
 
-const MOCK_PATIENTS = [
-    { id: 1, name: 'Elif Sarı', tc: '123***901', birthDate: '1992-05-15', phone: '0532 200 ****', bloodType: 'A Rh+', gestationalWeek: 38, riskLevel: 'low', status: 'admitted', room: '201', bed: 'A', emergencyContact: 'Ahmet Sarı', notes: 'Normal gebelik takibi', admissionDate: '2026-02-18' },
-    { id: 2, name: 'Merve Çelik', tc: '234***012', birthDate: '1988-11-22', phone: '0532 200 ****', bloodType: 'B Rh+', gestationalWeek: 36, riskLevel: 'high', status: 'in_labor', room: '202', bed: 'B', emergencyContact: 'Can Çelik', notes: 'Gestasyonel diyabet mevcut', admissionDate: '2026-02-19' },
-    { id: 3, name: 'Ayça Koç', tc: '345***123', birthDate: '1995-03-08', phone: '0532 200 ****', bloodType: '0 Rh-', gestationalWeek: 40, riskLevel: 'medium', status: 'in_surgery', room: '203', bed: 'A', emergencyContact: 'Burak Koç', notes: 'Planlı sezaryen - çoğul gebelik', admissionDate: '2026-02-19' },
-    { id: 4, name: 'Deniz Aydın', tc: '456***234', birthDate: '1990-07-30', phone: '0532 200 ****', bloodType: 'AB Rh+', gestationalWeek: 39, riskLevel: 'low', status: 'postpartum', room: '204', bed: 'B', emergencyContact: 'Emre Aydın', notes: 'Normal doğum gerçekleşti', admissionDate: '2026-02-17' },
-];
-
-const EVENTS = [
-    { id: 1, patientId: 1, type: 'admission', title: 'Yatış Kabul', description: 'Hasta yatışı yapıldı', by: 'Sek. Zeynep Ak', time: '18 Şubat 10:00' },
-    { id: 2, patientId: 1, type: 'examination', title: 'İlk Muayene', description: 'NST ve USG yapıldı, normal bulgular', by: 'Dr. Mehmet Kaya', time: '18 Şubat 11:30' },
-    { id: 3, patientId: 2, type: 'admission', title: 'Yatış Kabul', description: 'Acil başvuru - düzensiz kasılmalar', by: 'Sek. Zeynep Ak', time: '19 Şubat 03:00' },
-    { id: 4, patientId: 2, type: 'lab_result', title: 'Kan Tahlili', description: 'Kan şekeri seviyesi yüksek, insülin dozu ayarlandı', by: 'Hmş. Fatma Demir', time: '19 Şubat 04:00' },
-    { id: 5, patientId: 3, type: 'surgery_prep', title: 'Ameliyat Hazırlığı', description: 'Anestezi konsültasyonu tamamlandı', by: 'Dr. Ayşe Yılmaz', time: '19 Şubat 08:00' },
-    { id: 6, patientId: 4, type: 'surgery', title: 'Normal Doğum', description: 'Komplikasyonsuz vajinal doğum, 3200gr erkek bebek', by: 'Dr. Mehmet Kaya', time: '17 Şubat 15:30' },
-    { id: 7, patientId: 4, type: 'note', title: 'Postpartum Takip', description: 'Anne ve bebek stabil, emzirme eğitimi verildi', by: 'Hmş. Fatma Demir', time: '18 Şubat 09:00' },
-];
-
 export default function PatientsPage() {
     const [viewMode, setViewMode] = useState('kanban');
-    const [patients, setPatients] = useState(MOCK_PATIENTS);
+    const [patients, setPatients] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [showAddModal, setShowAddModal] = useState(false);
     const [toast, setToast] = useState(null);
     const [newPatient, setNewPatient] = useState({
-        name: '', bloodType: 'A Rh+', gestationalWeek: 38, riskLevel: 'low', status: 'admitted', room: '', bed: '', notes: ''
+        name: '', tcNo: '', birthDate: '', bloodType: 'A Rh+',
+        gestationalWeek: 38, riskLevel: 'low', room: '', bed: '',
+        emergencyContact: '', notes: ''
     });
+
+    useEffect(() => {
+        fetchPatients();
+    }, []);
+
+    const fetchPatients = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/patients');
+            if (res.ok) {
+                const data = await res.json();
+                setPatients(data);
+            }
+        } catch (error) {
+            console.error('Fetch error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const filteredPatients = patients.filter(p => {
         const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -49,22 +52,43 @@ export default function PatientsPage() {
 
     const kanbanColumns = ['admitted', 'in_labor', 'in_surgery', 'postpartum', 'discharged'];
 
-    const updatePatientStatus = (patientId, newStatus) => {
+    const updatePatientStatus = async (patientId, newStatus) => {
+        // Status update API can be added later, for now we update local state
         setPatients(patients.map(p => p.id === patientId ? { ...p, status: newStatus } : p));
         setToast({ type: 'success', message: `Hasta durumu güncellendi: ${STATUS_LABELS[newStatus]}` });
         setTimeout(() => setToast(null), 3000);
     };
 
-    const handleAddPatient = () => {
-        if (!newPatient.name) {
-            setToast({ type: 'error', message: 'Hasta adı zorunludur' });
+    const handleAddPatient = async () => {
+        if (!newPatient.name || !newPatient.tcNo) {
+            setToast({ type: 'error', message: 'Ad ve TC No zorunludur' });
             setTimeout(() => setToast(null), 3000);
             return;
         }
-        setPatients([...patients, { ...newPatient, id: Date.now(), tc: '***', phone: '***', birthDate: '-', emergencyContact: '-', admissionDate: new Date().toISOString().split('T')[0] }]);
-        setShowAddModal(false);
-        setNewPatient({ name: '', bloodType: 'A Rh+', gestationalWeek: 38, riskLevel: 'low', status: 'admitted', room: '', bed: '', notes: '' });
-        setToast({ type: 'success', message: 'Hasta kaydı oluşturuldu' });
+
+        try {
+            const res = await fetch('/api/patients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newPatient)
+            });
+
+            if (res.ok) {
+                setShowAddModal(false);
+                setNewPatient({
+                    name: '', tcNo: '', birthDate: '', bloodType: 'A Rh+',
+                    gestationalWeek: 38, riskLevel: 'low', room: '', bed: '',
+                    emergencyContact: '', notes: ''
+                });
+                setToast({ type: 'success', message: 'Hasta kaydı oluşturuldu' });
+                fetchPatients();
+            } else {
+                const data = await res.json();
+                setToast({ type: 'error', message: data.error || 'Hata oluştu' });
+            }
+        } catch (error) {
+            setToast({ type: 'error', message: 'Bağlantı hatası' });
+        }
         setTimeout(() => setToast(null), 3000);
     };
 
@@ -261,32 +285,52 @@ export default function PatientsPage() {
                             <button className="modal-close" onClick={() => setShowAddModal(false)}>✕</button>
                         </div>
                         <div className="modal-body">
-                            <div className="form-group">
-                                <label>Hasta Adı Soyadı *</label>
-                                <input type="text" value={newPatient.name} onChange={e => setNewPatient({ ...newPatient, name: e.target.value })} placeholder="Ad Soyad" />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div className="form-group">
+                                    <label>Hasta Adı Soyadı *</label>
+                                    <input type="text" value={newPatient.name} onChange={e => setNewPatient({ ...newPatient, name: e.target.value })} placeholder="Ad Soyad" />
+                                </div>
+                                <div className="form-group">
+                                    <label>TC Kimlik No *</label>
+                                    <input type="text" maxLength={11} value={newPatient.tcNo} onChange={e => setNewPatient({ ...newPatient, tcNo: e.target.value })} placeholder="11 haneli TC No" />
+                                </div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div className="form-group">
+                                    <label>Doğum Tarihi</label>
+                                    <input type="date" value={newPatient.birthDate} onChange={e => setNewPatient({ ...newPatient, birthDate: e.target.value })} />
+                                </div>
                                 <div className="form-group">
                                     <label>Kan Grubu</label>
                                     <select className="filter-select" style={{ width: '100%' }} value={newPatient.bloodType} onChange={e => setNewPatient({ ...newPatient, bloodType: e.target.value })}>
                                         {['A Rh+', 'A Rh-', 'B Rh+', 'B Rh-', 'AB Rh+', 'AB Rh-', '0 Rh+', '0 Rh-'].map(bt => <option key={bt} value={bt}>{bt}</option>)}
                                     </select>
                                 </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div className="form-group">
                                     <label>Gebelik Haftası</label>
                                     <input type="number" value={newPatient.gestationalWeek} onChange={e => setNewPatient({ ...newPatient, gestationalWeek: parseInt(e.target.value) })} />
                                 </div>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div className="form-group">
                                     <label>Risk Seviyesi</label>
                                     <select className="filter-select" style={{ width: '100%' }} value={newPatient.riskLevel} onChange={e => setNewPatient({ ...newPatient, riskLevel: e.target.value })}>
                                         {Object.entries(RISK_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                     </select>
                                 </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                                 <div className="form-group">
-                                    <label>Oda / Yatak</label>
-                                    <input type="text" value={newPatient.room} onChange={e => setNewPatient({ ...newPatient, room: e.target.value })} placeholder="Ör: 205/A" />
+                                    <label>Oda</label>
+                                    <input type="text" value={newPatient.room} onChange={e => setNewPatient({ ...newPatient, room: e.target.value })} placeholder="Ör: 205" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Yatak</label>
+                                    <input type="text" value={newPatient.bed} onChange={e => setNewPatient({ ...newPatient, bed: e.target.value })} placeholder="Ör: A" />
+                                </div>
+                                <div className="form-group">
+                                    <label>Acil İletişim</label>
+                                    <input type="text" value={newPatient.emergencyContact} onChange={e => setNewPatient({ ...newPatient, emergencyContact: e.target.value })} placeholder="Ad Soyad / Tel" />
                                 </div>
                             </div>
                             <div className="form-group">

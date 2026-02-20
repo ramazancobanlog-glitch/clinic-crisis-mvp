@@ -44,6 +44,9 @@ export default function LoginPage() {
 
     return (
         <div className="login-page">
+            <div className="draft-notice">
+                ⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.
+            </div>
             <div className="login-container fade-in">
                 <div className="login-logo">
                     <div className="login-logo-icon">🏥</div>

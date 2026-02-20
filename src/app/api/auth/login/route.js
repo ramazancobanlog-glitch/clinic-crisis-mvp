@@ -34,16 +34,9 @@ export async function POST(request, { params }) {
             return NextResponse.json({ error: 'Email ve şifre gerekli' }, { status: 400 });
         }
 
-        // Cloudflare D1 bağlantısını context'ten al
-        // next-on-pages ile process.env yerine cloudflare() kullanılır
-        let db = null;
-        try {
-            const { getRequestContext } = await import('@cloudflare/next-on-pages');
-            db = getRequestContext().env.DB;
-        } catch {
-            // Cloudflare dışında (local dev) DB yok, demo moduna geç
-            db = null;
-        }
+        // D1 bağlantısını merkezi yardımcı fonksiyonla al
+        const { getDB } = await import('@/lib/db');
+        const db = await getDB();
 
         // D1 kullanılabiliyorsa gerçek DB'ye bak
         if (db) {
