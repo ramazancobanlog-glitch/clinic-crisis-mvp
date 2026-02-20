@@ -40,12 +40,22 @@ export default function DashboardLayout({ children }) {
     const [user, setUser] = useState(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [currentDate, setCurrentDate] = useState('');
+    const [showDraftNotice, setShowDraftNotice] = useState(false);
 
     useEffect(() => {
         // Kullanıcı bilgisini al
         fetchCurrentUser();
         // Tarih sadece client tarafında render edilsin (hydration fix)
         setCurrentDate(new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+
+        // Taslak uyarısını sadece ilk girişte göster
+        if (!sessionStorage.getItem('draftNoticeSeen')) {
+            setShowDraftNotice(true);
+            sessionStorage.setItem('draftNoticeSeen', 'true');
+            // 8 saniye sonra otomatik gizle
+            const timer = setTimeout(() => setShowDraftNotice(false), 8000);
+            return () => clearTimeout(timer);
+        }
     }, []);
 
     const fetchCurrentUser = async () => {
@@ -100,9 +110,12 @@ export default function DashboardLayout({ children }) {
 
     return (
         <div className="dashboard-layout">
-            <div className="draft-notice" style={{ position: 'fixed', zIndex: 2000 }}>
-                ⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.
-            </div>
+            {showDraftNotice && (
+                <div className="draft-notice" style={{ position: 'fixed', zIndex: 2000, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>⚠️ <strong>BU BİR TASLAK SİTEDİR:</strong> Bu uygulama sadece prototip ve demonstrasyon amaçlıdır.</span>
+                    <button onClick={() => setShowDraftNotice(false)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '16px', marginLeft: '16px' }}>✕</button>
+                </div>
+            )}
             {/* Sidebar */}
             <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
